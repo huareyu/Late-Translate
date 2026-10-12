@@ -1,0 +1,107 @@
+<div id="lt_settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header lt-drawer-header">
+            <div class="lt-brand"><span class="lt-monogram" aria-hidden="true">LT</span><b>Late-Translate <small>1.4.0</small></b></div>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content lt-workspace">
+            <div class="lt-dashboard">
+                <div class="lt-dashboard-top">
+                    <div><span class="lt-eyebrow">ПЕРЕВОДЧИК ИСТОРИЙ</span><p class="lt-intro">Читай на своём языке</p></div>
+                    <label class="lt-switch lt-main-switch"><span id="lt_enabled_text">Включено</span><input id="lt_enabled" data-setting="enabled" type="checkbox" aria-label="Включить Late-Translate"><span class="lt-switch-track" aria-hidden="true"></span></label>
+                </div>
+                <div class="lt-language-route">
+                    <label class="lt-field" for="lt_story_lang"><span class="lt-eyebrow">Исходный язык:</span><select id="lt_story_lang" data-setting="storyLang" class="text_pole"></select></label>
+                    <label class="lt-field" for="lt_view_lang"><span class="lt-eyebrow">Переводим на:</span><select id="lt_view_lang" data-setting="viewLang" class="text_pole"></select></label>
+                </div>
+                <div class="lt-mode-grid">
+                    <label class="lt-switch lt-mode"><span class="lt-mode-copy"><strong>Ответы персонажа</strong><small>Переводить автоматически</small></span><input id="lt_auto_in" data-setting="autoIn" type="checkbox"><span class="lt-switch-track" aria-hidden="true"></span></label>
+                    <label class="lt-switch lt-mode"><span class="lt-mode-copy"><strong>Мои сообщения</strong><small>Отправлять на языке модели</small></span><input id="lt_auto_out" data-setting="autoOut" type="checkbox"><span class="lt-switch-track" aria-hidden="true"></span></label>
+                </div>
+                <label class="lt-switch lt-composer-option"><span class="lt-mode-copy"><strong>Кнопка перевода у поля ввода</strong><small>Рядом с кнопкой отправки</small></span><input id="lt_show_input_button" data-setting="showInputButton" type="checkbox"><span class="lt-switch-track" aria-hidden="true"></span></label>
+                <div class="lt-tone-heading"><span>Манера перевода</span><b id="lt_tone_label">Сбалансированный</b></div>
+                <input id="lt_tone" data-setting="tone" type="hidden">
+                <div class="lt-tone-choices" role="group" aria-label="Манера перевода">
+                    <button type="button" class="lt-tone-choice" data-tone="1" aria-pressed="false" title="Дословный"><span>1</span><small>Точно</small></button>
+                    <button type="button" class="lt-tone-choice" data-tone="2" aria-pressed="false" title="Скорее дословный"><span>2</span><small>Близко</small></button>
+                    <button type="button" class="lt-tone-choice" data-tone="3" aria-pressed="true" title="Сбалансированный"><span>3</span><small>Баланс</small></button>
+                    <button type="button" class="lt-tone-choice" data-tone="4" aria-pressed="false" title="Скорее свободный"><span>4</span><small>Плавно</small></button>
+                    <button type="button" class="lt-tone-choice" data-tone="5" aria-pressed="false" title="Свободная адаптация"><span>5</span><small>Вольно</small></button>
+                </div>
+                <p class="lt-caption">Оригинал ответа остаётся в истории модели. Перевод виден вам.</p>
+            </div>
+            <div class="lt-quick-actions" role="group" aria-label="Действия с переводом">
+                <button id="lt_batch" type="button" class="menu_button" title="Перевести ещё не переведённые ответы"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Весь чат</span></button>
+                <button id="lt_clear_display" type="button" class="menu_button" title="Убрать отображаемые переводы"><i class="fa-solid fa-broom" aria-hidden="true"></i><span>Убрать перевод</span></button>
+            </div>
+            <p id="lt_status" class="lt-hint" role="status" aria-live="polite"></p>
+            <div class="lt-sections">
+                <details class="lt-section" data-section="model">
+                    <summary><span class="lt-section-icon" aria-hidden="true"><i class="fa-solid fa-plug"></i></span><span class="lt-summary-copy"><strong>Подключение</strong><small id="lt_connection_summary">Активное API</small></span><span class="lt-chevron" aria-hidden="true"></span></summary>
+                    <div class="lt-section-body">
+                        <label class="lt-field" for="lt_api_mode">Где переводить<select id="lt_api_mode" data-setting="apiMode" class="text_pole"><option value="current">Активные настройки SillyTavern</option><option value="profile">Профиль подключения</option><option value="custom">Отдельный OpenAI-совместимый API</option></select></label>
+                        <label id="lt_profile_row" class="lt-field" for="lt_profile" style="display:none">Профиль Connection Manager<select id="lt_profile" data-setting="profileId" class="text_pole"></select></label>
+                        <div id="lt_custom_api" style="display:none">
+                            <label class="lt-field" for="lt_api_url">Адрес API<input id="lt_api_url" data-api-setting="url" class="text_pole" type="url" placeholder="https://api.example.com/v1"></label>
+                            <label class="lt-field" for="lt_api_key">Ключ API<input id="lt_api_key" data-api-setting="key" class="text_pole" type="password" autocomplete="off" placeholder="sk-..."></label>
+                            <label class="lt-field" for="lt_api_model">Модель<input id="lt_api_model" data-api-setting="model" class="text_pole" type="text" placeholder="model-name"></label>
+                            <div class="lt-grid">
+                                <label class="lt-field" for="lt_api_temp">Температура<input id="lt_api_temp" data-api-setting="temperature" class="text_pole" type="number" min="0" max="2" step="0.1"></label>
+                                <label class="lt-field" for="lt_api_timeout">Ожидание, с<input id="lt_api_timeout" data-api-setting="timeout" class="text_pole" type="number" min="10" max="600" step="10"></label>
+                            </div>
+                            <p class="lt-hint">API должен разрешать CORS для запроса из браузера. Ключ сохраняется в настройках SillyTavern.</p>
+                        </div>
+                        <label class="lt-field" for="lt_tokens">Лимит токенов ответа<input id="lt_tokens" data-setting="responseTokens" class="text_pole" type="number" min="512" max="65536" step="512"></label>
+                        <button id="lt_api_test" type="button" class="menu_button lt-wide-button"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i> Проверить подключение</button>
+                    </div>
+                </details>
+                <details class="lt-section" data-section="glossary">
+                    <summary><span class="lt-section-icon" aria-hidden="true"><i class="fa-solid fa-book-open"></i></span><span class="lt-summary-copy"><strong>Глоссарий чата</strong><small>Имена и постоянные термины</small></span><span id="lt_glossary_count" class="lt-count">0</span><span class="lt-chevron" aria-hidden="true"></span></summary>
+                    <div class="lt-section-body">
+                        <p class="lt-hint">Слева — язык модели, справа — ваш язык. Для перевода ввода направление меняется автоматически.</p>
+                        <p id="lt_chat_notice" class="lt-notice">Откройте чат, чтобы редактировать его глоссарий.</p>
+                        <div id="lt_quarantine" class="lt-notice" style="display:none">
+                            <p>Из другого чата унаследовано терминов: <b id="lt_quarantine_count"></b>. Они пока не используются.</p>
+                            <div class="lt-actions"><button id="lt_quarantine_import" type="button" class="menu_button lt-book-action">Импортировать</button><button id="lt_quarantine_drop" type="button" class="menu_button lt-book-action">Убрать список</button></div>
+                        </div>
+                        <div class="lt-actions">
+                            <button id="lt_glossary_add" type="button" class="menu_button lt-book-action"><i class="fa-solid fa-plus" aria-hidden="true"></i> Термин</button>
+                            <button id="lt_glossary_scan" type="button" class="menu_button lt-book-action"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Собрать LLM</button>
+                            <button id="lt_glossary_clear" type="button" class="menu_button lt-book-action"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Очистить</button>
+                        </div>
+                        <div id="lt_glossary_list"></div>
+                        <p id="lt_glossary_empty" class="lt-empty"><i class="fa-solid fa-book-open" aria-hidden="true"></i><span>Свои имена, свои переводы.<small>Добавьте первый термин или соберите их с помощью LLM.</small></span></p>
+                    </div>
+                </details>
+                <details class="lt-section" data-section="prompt">
+                    <summary><span class="lt-section-icon" aria-hidden="true"><i class="fa-solid fa-feather-pointed"></i></span><span class="lt-summary-copy"><strong>Указания и промпт</strong><small>Как должен звучать перевод</small></span><span class="lt-chevron" aria-hidden="true"></span></summary>
+                    <div class="lt-section-body">
+                        <label class="lt-field" for="lt_reader_note">Ваши указания<small>Можно написать на английском</small><textarea id="lt_reader_note" data-setting="readerNote" class="text_pole" rows="3" placeholder="Keep dialogue conversational and narration literary. Preserve each character's individual voice."></textarea></label>
+                        <details class="lt-prompt-editor"><summary>Редактировать системный промпт <span>EN</span></summary>
+                            <div class="lt-prompt-heading"><label for="lt_prompt">Translation system prompt</label><button id="lt_prompt_reset" type="button" class="menu_button" title="Восстановить промпт по умолчанию"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Сбросить</button></div>
+                            <textarea id="lt_prompt" data-setting="promptTemplate" class="text_pole lt-prompt" rows="14" spellcheck="false"></textarea>
+                            <p class="lt-hint"><code>{{source_lang}}</code> и <code>{{target_lang}}</code> подставляются автоматически. Глоссарий и тон добавляются отдельно.</p>
+                        </details>
+                        <p class="lt-hint">Изменения применятся при следующем переводе.</p>
+                    </div>
+                </details>
+                <details class="lt-section" data-section="format">
+                    <summary><span class="lt-section-icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span><span class="lt-summary-copy"><strong>Формат и контекст</strong><small>Бережно к разметке и деталям</small></span><span class="lt-chevron" aria-hidden="true"></span></summary>
+                    <div class="lt-section-body">
+                        <label class="checkbox_label"><input id="lt_seal_macros" data-setting="sealMacros" type="checkbox"><span>Защищать {{макросы}}</span></label>
+                        <label class="checkbox_label"><input id="lt_retry" data-setting="retry" type="checkbox"><span>Повторить запрос при потере форматирования</span></label>
+                        <label class="lt-field" for="lt_seal_tags">Сохранить теги целиком<input id="lt_seal_tags" data-setting="sealTags" class="text_pole" type="text" placeholder="style, script, status, statusbar"></label>
+                        <p class="lt-hint">Код, изображения, ссылки, HTML-комментарии и сами теги защищаются автоматически. Указанные выше теги сохраняются вместе с содержимым.</p>
+                        <label class="lt-field" for="lt_context">Предыдущие пары «оригинал → перевод»<input id="lt_context" data-setting="contextPairs" class="text_pole" type="number" min="0" max="6" step="1" aria-describedby="lt_context_pairs_hint"></label>
+                        <p id="lt_context_pairs_hint" class="lt-hint">Примеры из предыдущих сообщений с показанным переводом: оригинал и его перевод, до 350 символов каждый. Помогают сохранять стиль и выбор слов, но не передают всю историю чата. 0 — не отправлять примеры.</p>
+                        <label class="lt-field" for="lt_context_messages">Сообщений чата в контексте переводчика<input id="lt_context_messages" data-setting="contextMessages" class="text_pole" type="number" min="0" max="100" step="1" aria-describedby="lt_context_messages_hint"></label>
+                        <p id="lt_context_messages_hint" class="lt-hint">Последние N сообщений перед переводимым текстом — пользователь и персонаж вместе, в хронологическом порядке, целиком. Для перевода поля ввода берутся сообщения в конце чата. Это справка для понимания сцены, а не текст для перевода. Ризонинг, системные сообщения и внешние блоки не отправляются. 0 — без истории. Больше сообщений — больше входных токенов; учитывайте лимит контекста модели.</p>
+                        <label class="checkbox_label"><input id="lt_skip_native" data-setting="skipNative" type="checkbox"><span>Пропускать текст, уже написанный на нужном языке</span></label>
+                        <p class="lt-hint">Определение по алфавиту: русский, корейский, японский, китайский и тайский. Языки на латинице автоматически не пропускаются.</p>
+                    </div>
+                </details>
+            </div>
+            <footer class="lt-footer"><span>🌏 Перевод / оригинал</span><span>⚖️ Сравнение и правка</span></footer>
+        </div>
+    </div>
+</div>
