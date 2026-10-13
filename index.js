@@ -715,17 +715,32 @@ export function bindEvents() {
         decorateMessages();
         if (getSettings().autoOut) await translateOutgoing(Number(id));
     });
-    eventSource.on(event_types.MESSAGE_SWIPED, async id => {
+    eventSource.on(event_types.MESSAGE_SWIPED, id => {
         id = Number(id);
         const m = chat[id];
         if (!m || m.is_user || m.is_system) return;
-        const hadDisplay = ownsDisplay(m);
-        pending.get(m)?.controller.abort();
-        hideDisplay(m);
+        const op = pending.get(m);
+        if (op) { op.controller.abort(); pending.delete(m); }
+        imageReady.delete(m);
+
+        // ST restores each existing swipe's extras itself. Preserve its saved
+        // translation, including manual edits; navigation is never an API call.
+        // New swipe slots still contain the previous body until generation starts.
+        const generating = m.mes === '...' || (Array.isArray(m.swipes) && m.swipe_id >= m.swipes.length)
+            || $(`#chat .mes[mesid="${id}"] .mes_text`).text() === '...';
+        if (!generating) {
+            const record = m.extra?.[KEY];
+            if (record && record.source !== m.mes) {
+                if (hideDisplay(m)) updateMessageBlock(id, m);
+            } else if (record?.shown && typeof record.display === 'string' && !ownsDisplay(m)
+                && (!m.extra.display_text || isBlocksDisplay(m))) {
+                showDisplay(m, record.display, record.direction,
+                    record.direction === 'outgoing' ? { inputOriginal: record.inputOriginal } : {});
+                updateMessageBlock(id, m);
+            }
+        }
         decorateMessages();
-        // "..." denotes a swipe still being generated; its rendered event will translate it.
-        if (m.mes === '...' || $(`#chat .mes[mesid="${id}"] .mes_text`).text() === '...') return;
-        if (getSettings().autoIn || hadDisplay) await translateIncoming(id, { force: hadDisplay, restart: true });
+        // Only CHARACTER_MESSAGE_RENDERED translates a newly generated reply.
     });
     eventSource.on(event_types.MESSAGE_UPDATED, async id => {
         id = Number(id);
@@ -799,6 +814,6 @@ jQuery(async () => {
             for (const [code, [label]] of Object.entries(LANGUAGES)) $(this).append($('<option>').val(code).text(label));
         });
         bindUI(); bindEvents(); registerCommands(); syncUI();
-        console.info('[Late-Translate] Loaded v1.4.0');
+        console.info('[Late-Translate] Loaded v1.4.1');
     } catch (error) { console.error('[Late-Translate] Initialization failed', error); reportError(error); }
 });
