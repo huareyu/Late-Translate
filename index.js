@@ -172,6 +172,22 @@ function ownsDisplay(m) {
             && m.extra.extblocks && displayed.startsWith(record.display))));
 }
 
+/** One persistent body per message/swipe. Visibility never deletes this cache. */
+function cachedTranslation(m) {
+    const record = m.extra?.[KEY];
+    if (!record || record.source !== m.mes || m.mes === '...'
+        || (Array.isArray(m.swipes) && m.swipe_id >= m.swipes.length)) return null;
+    // Migrate outgoing records hidden by releases before 1.5.
+    if (record.direction === 'outgoing' && !record.display) record.display = record.inputOriginal;
+    return typeof record.display === 'string' && record.display.trim() ? record : null;
+}
+
+function cacheMatchesLanguages(record, s = getSettings()) {
+    // Older saved translations did not record languages; keep them usable.
+    return (!record.storyLang || record.storyLang === s.storyLang)
+        && (!record.viewLang || record.viewLang === s.viewLang);
+}
+
 /** ExtBlocks owns the suffix; only the story body belongs to the translator. */
 function externalSuffix(m) {
     if (!extension_settings.ExtBlocks?.extblocks_is_enabled || !m.extra?.extblocks) return '';
@@ -242,7 +258,7 @@ export async function prepareImages(mesId) {
     return true;
 }
 
-function hideDisplay(m, { showOriginal = false } = {}) {
+function hideDisplay(m, { showOriginal = false, discard = false } = {}) {
     const record = m.extra?.[KEY];
     if (!record) return false;
     if (showOriginal || ownsDisplay(m)) {
@@ -250,9 +266,8 @@ function hideDisplay(m, { showOriginal = false } = {}) {
         if (suffix) m.extra.display_text = m.mes + suffix;
         else delete m.extra.display_text;
     }
-    // The user's original input must survive toggling the visible display off.
-    if (record.direction === 'outgoing') { record.shown = false; record.display = null; }
-    else delete m.extra[KEY];
+    record.shown = false;
+    if (discard) delete m.extra[KEY];
     return true;
 }
 
@@ -260,8 +275,20 @@ function showDisplay(m, display, direction, extra = {}) {
     m.extra ||= {};
     const suffix = externalSuffix(m);
     m.extra.display_text = display + suffix;
-    m.extra[KEY] = { source: m.mes, display, renderedDisplay: m.extra.display_text,
-        blockSuffix: suffix, extblocksSource: m.extra.extblocks, shown: true, direction, ...extra };
+    m.extra[KEY] = { storyLang: getSettings().storyLang, viewLang: getSettings().viewLang,
+        ...extra, source: m.mes, display, renderedDisplay: m.extra.display_text,
+        blockSuffix: suffix, extblocksSource: m.extra.extblocks, shown: true, direction };
+}
+
+/** Rebuild only our projection, without calling the translator or reviving hidden text. */
+function restoreDisplay(m, id) {
+    const record = cachedTranslation(m);
+    if (!record?.shown || pending.has(m)) return;
+    if (m.extra.display_text === record.display + externalSuffix(m)) return;
+    if (ownsDisplay(m) || !m.extra.display_text || m.extra.display_text === m.mes || isBlocksDisplay(m)) {
+        showDisplay(m, record.display, record.direction, record);
+        updateMessageBlock(id, m);
+    }
 }
 
 function beginOperation(m, mesId) {
@@ -292,12 +319,24 @@ function reportError(error, op) {
     }
 }
 
-export async function translateIncoming(mesId, { force = false, replace = false, restart = false } = {}) {
+export async function translateIncoming(mesId, { force = false, replace = false, restart = false, revealCached = false } = {}) {
     const m = chat[mesId];
     if (!m || m.is_system || !String(m.mes || '').trim() || !chatId()) return false;
     if (pending.has(m) && !restart) return false;
     const { settings: s, glossary } = snapshot();
-    if (!s.enabled || (!force && (ownsDisplay(m) || (s.skipNative && looksNative(sealText(m.mes, s).sealed, s.viewLang))))) return false;
+    if (!s.enabled) return false;
+    const cached = cachedTranslation(m);
+    if (!force && cached && (cached.shown || cacheMatchesLanguages(cached, s))) {
+        if (revealCached && !cached.shown && (!m.extra.display_text || isBlocksDisplay(m))) {
+            showDisplay(m, cached.display, cached.direction, cached);
+            updateMessageBlock(mesId, m);
+            await getContext().saveChat();
+            return true;
+        }
+        restoreDisplay(m, mesId);
+        return false;
+    }
+    if (!force && (ownsDisplay(m) || (s.skipNative && looksNative(sealText(m.mes, s).sealed, s.viewLang)))) return false;
     if (m.extra?.display_text && !ownsDisplay(m) && !isBlocksDisplay(m) && !replace) return false;
     const op = beginOperation(m, mesId);
     try {
@@ -348,8 +387,8 @@ export async function toggleTranslation(mesId) {
         updateMessageBlock(mesId, m);
         await getContext().saveChat();
         decorateMessages();
-    } else if (record?.direction === 'outgoing' && record.source === m.mes) {
-        showDisplay(m, record.inputOriginal, 'outgoing', { inputOriginal: record.inputOriginal });
+    } else if (cachedTranslation(m) && (record.direction === 'outgoing' || cacheMatchesLanguages(record))) {
+        showDisplay(m, record.display, record.direction, record);
         updateMessageBlock(mesId, m);
         await getContext().saveChat();
         decorateMessages();
@@ -362,10 +401,12 @@ export async function toggleTranslation(mesId) {
     }
 }
 
-async function compareTranslation(mesId) {
+export async function compareTranslation(mesId) {
     const m = chat[mesId];
     if (!ownsDisplay(m) || pending.has(m)) return;
     const epoch = chatEpoch;
+    const swipe = m.swipe_id;
+    const record = m.extra[KEY];
     const source = m.mes;
     const display = m.extra.display_text;
     const $dialog = $('<div class="lt-compare"></div>');
@@ -375,17 +416,19 @@ async function compareTranslation(mesId) {
     $dialog.append($('<label>').text('Текст на экране — можно редактировать'));
     const $edit = $('<textarea class="text_pole" rows="8">').val(m.extra[KEY].display);
     $dialog.append($edit);
-    const result = await callGenericPopup($dialog, POPUP_TYPE.CONFIRM, '', { okButton: 'Сохранить', cancelButton: 'Закрыть', wide: true });
+    const result = await callGenericPopup($dialog, POPUP_TYPE.CONFIRM, '', { okButton: 'Сохранить', cancelButton: 'Закрыть', wide: true,
+        customButtons: record.direction === 'incoming' ? [{ text: 'Перевести заново', result: 2,
+            tooltip: 'Новый запрос к модели с текущими настройками; заменит сохранённый перевод только при успехе.' }] : [] });
     if (!result) return;
-    if (epoch !== chatEpoch || chat[mesId] !== m || m.mes !== source || m.extra?.display_text !== display) {
+    if (epoch !== chatEpoch || chat[mesId] !== m || m.swipe_id !== swipe || m.extra?.[KEY] !== record || m.mes !== source || m.extra?.display_text !== display) {
         toastr.warning('Сообщение изменилось. Откройте сравнение ещё раз.', 'Late-Translate'); return;
     }
+    if (result === 2) { await translateIncoming(mesId, { force: true, restart: true }); return; }
     pending.get(m)?.controller.abort();
     const edited = String($edit.val());
     if (!edited.trim()) hideDisplay(m);
     else {
-        const record = m.extra[KEY];
-        showDisplay(m, edited, record.direction, record.direction === 'outgoing' ? { inputOriginal: edited } : {});
+        showDisplay(m, edited, record.direction, { ...record, ...(record.direction === 'outgoing' ? { inputOriginal: edited } : {}) });
     }
     updateMessageBlock(mesId, m);
     await getContext().saveChat();
@@ -468,7 +511,7 @@ async function translateChat() {
     try {
         for (const { m, id } of targets) {
             if (epoch !== chatEpoch || !getSettings().enabled) break;
-            if (chat[id] === m && await translateIncoming(id)) done++;
+            if (chat[id] === m && await translateIncoming(id, { revealCached: true })) done++;
             $('#lt_status').text(`Переведено: ${done} / ${targets.length}`);
         }
         if (epoch === chatEpoch) $('#lt_status').text(`Завершено. Переведено сообщений: ${done}.`);
@@ -477,10 +520,29 @@ async function translateChat() {
 
 async function clearTranslations() {
     const epoch = chatEpoch;
-    const ok = await callGenericPopup('Убрать отображаемые переводы Late-Translate в этом чате? Текст, передаваемый модели, сохранится.', POPUP_TYPE.CONFIRM);
+    const ok = await callGenericPopup('Показать оригиналы в этом чате? Переводы останутся в кэше — глобус вернёт их без запроса к модели.', POPUP_TYPE.CONFIRM);
     if (!ok || epoch !== chatEpoch) return;
     for (const [m, op] of pending) { op.controller.abort(); pending.delete(m); }
     chat.forEach((m, id) => { if (hideDisplay(m)) updateMessageBlock(id, m); });
+    await getContext().saveChat();
+    decorateMessages();
+}
+
+export async function clearTranslationCache() {
+    const epoch = chatEpoch, id = chatId();
+    if (!id) return;
+    if (!await callGenericPopup('Очистить кэш переводов этого чата, включая все свайпы и ручные правки? Следующий перевод потребует нового запроса к модели. Исходные сообщения, внешние блоки и сохранённый пользовательский ввод останутся.', POPUP_TYPE.CONFIRM)
+        || epoch !== chatEpoch || id !== chatId()) return;
+    cancelPending();
+    for (const [index, m] of chat.entries()) {
+        imageReady.delete(m);
+        if (hideDisplay(m, { discard: m.extra?.[KEY]?.direction !== 'outgoing' })) updateMessageBlock(index, m);
+        for (const [swipe, info] of (m.swipe_info || []).entries()) {
+            if (!info?.extra?.[KEY] || typeof m.swipes?.[swipe] !== 'string') continue;
+            const saved = { mes: m.swipes[swipe], extra: info.extra, swipe_id: swipe };
+            hideDisplay(saved, { discard: saved.extra[KEY].direction !== 'outgoing' });
+        }
+    }
     await getContext().saveChat();
     decorateMessages();
 }
@@ -493,7 +555,7 @@ export function decorateMessages() {
         const $buttons = $message.find('.extraMesButtons');
         if (!getSettings().enabled || !m || m.is_system) { $buttons.find('.lt-message-button').remove(); return; }
         if (!$buttons.find('.lt-toggle').length) {
-            $buttons.prepend('<div role="button" tabindex="0" class="mes_button lt-message-button lt-toggle fa-solid fa-earth-asia" title="Перевести / убрать перевод (Late-Translate)"></div>');
+            $buttons.prepend('<div role="button" tabindex="0" class="mes_button lt-message-button lt-toggle fa-solid fa-earth-asia" title="Оригинал / сохранённый перевод (Late-Translate)"></div>');
         }
         $buttons.find('.lt-toggle').toggleClass('lt-busy', pending.has(m))
             .toggleClass('lt-shown', ownsDisplay(m)).attr('aria-pressed', String(ownsDisplay(m)));
@@ -711,6 +773,7 @@ function bindUI() {
     });
     $('#lt_batch').on('click', safeAction(translateChat));
     $('#lt_clear_display').on('click', safeAction(clearTranslations));
+    $('#lt_clear_cache').on('click', safeAction(clearTranslationCache));
     $(document).on('click', '.lt-toggle', safeAction(function () {
         return toggleTranslation(Number($(this).closest('.mes').attr('mesid')));
     }));
@@ -749,18 +812,12 @@ export function bindEvents() {
         if (generating) {
             // A new slot inherits the previous extras until ST starts generation.
             // Its old translation already lives in that previous swipe's storage.
-            hideDisplay(m);
+            hideDisplay(m, { discard: true });
         } else {
             const record = m.extra?.[KEY];
             if (record && record.source !== m.mes) {
-                if (hideDisplay(m)) updateMessageBlock(id, m);
-            } else if (record?.shown && typeof record.display === 'string'
-                && (ownsDisplay(m) || !m.extra.display_text || isBlocksDisplay(m))
-                && m.extra.display_text !== record.display + externalSuffix(m)) {
-                showDisplay(m, record.display, record.direction,
-                    record.direction === 'outgoing' ? { inputOriginal: record.inputOriginal } : {});
-                updateMessageBlock(id, m);
-            }
+                if (hideDisplay(m, { discard: true })) updateMessageBlock(id, m);
+            } else restoreDisplay(m, id);
         }
         decorateMessages();
         // Only CHARACTER_MESSAGE_RENDERED translates a newly generated reply.
@@ -773,7 +830,7 @@ export function bindEvents() {
         if (record?.source === m.mes) return;
         const hadDisplay = ownsDisplay(m);
         pending.get(m)?.controller.abort();
-        hideDisplay(m);
+        hideDisplay(m, { discard: true });
         if (!m.is_user && (getSettings().autoIn || hadDisplay)) await translateIncoming(id, { force: hadDisplay, restart: true });
         else if (m.is_user && getSettings().autoOut) await translateOutgoing(id, { restart: true });
         decorateMessages();
@@ -789,9 +846,12 @@ export function bindEvents() {
         renderGlossary();
         $('#lt_status').text('');
         refreshProfiles();
+        chat.forEach(restoreDisplay);
         decorateMessages();
     });
-    if (event_types.MORE_MESSAGES_LOADED) eventSource.on(event_types.MORE_MESSAGES_LOADED, decorateMessages);
+    if (event_types.MORE_MESSAGES_LOADED) eventSource.on(event_types.MORE_MESSAGES_LOADED, () => {
+        chat.forEach(restoreDisplay); decorateMessages();
+    });
 }
 
 function registerCommands() {
@@ -836,7 +896,7 @@ jQuery(async () => {
         $('#lt_view_lang, #lt_story_lang').each(function () {
             for (const [code, [label]] of Object.entries(LANGUAGES)) $(this).append($('<option>').val(code).text(label));
         });
-        bindUI(); bindEvents(); registerCommands(); syncUI();
-        console.info('[Late-Translate] Loaded v1.4.3');
+        bindUI(); bindEvents(); registerCommands(); chat.forEach(restoreDisplay); syncUI();
+        console.info('[Late-Translate] Loaded v1.5.0');
     } catch (error) { console.error('[Late-Translate] Initialization failed', error); reportError(error); }
 });

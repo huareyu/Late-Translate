@@ -1,7 +1,7 @@
 <div id="lt_settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header lt-drawer-header">
-            <div class="lt-brand"><span class="lt-monogram" aria-hidden="true">LT</span><b>Late-Translate <small>1.4.3</small></b></div>
+            <div class="lt-brand"><span class="lt-monogram" aria-hidden="true">LT</span><b>Late-Translate <small>1.5.0</small></b></div>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content lt-workspace">
@@ -32,7 +32,7 @@
             </div>
             <div class="lt-quick-actions" role="group" aria-label="Действия с переводом">
                 <button id="lt_batch" type="button" class="menu_button" title="Перевести ещё не переведённые ответы"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Весь чат</span></button>
-                <button id="lt_clear_display" type="button" class="menu_button" title="Убрать отображаемые переводы"><i class="fa-solid fa-broom" aria-hidden="true"></i><span>Убрать перевод</span></button>
+                <button id="lt_clear_display" type="button" class="menu_button" title="Показать оригиналы, сохранив переводы в кэше"><i class="fa-solid fa-broom" aria-hidden="true"></i><span>Показать оригиналы</span></button>
             </div>
             <p id="lt_status" class="lt-hint" role="status" aria-live="polite"></p>
             <div class="lt-sections">
@@ -82,7 +82,7 @@
                             <textarea id="lt_prompt" data-setting="promptTemplate" class="text_pole lt-prompt" rows="14" spellcheck="false"></textarea>
                             <p class="lt-hint"><code>{{source_lang}}</code> и <code>{{target_lang}}</code> подставляются автоматически. Глоссарий и тон добавляются отдельно.</p>
                         </details>
-                        <p class="lt-hint">Изменения применятся при следующем переводе.</p>
+                        <p class="lt-hint">Изменения применятся при новом запросе. Чтобы обновить сохранённый перевод, откройте ⚖️ → «Перевести заново».</p>
                     </div>
                 </details>
                 <details class="lt-section" data-section="format">
@@ -98,6 +98,8 @@
                         <p id="lt_context_messages_hint" class="lt-hint">Последние N сообщений перед переводимым текстом — пользователь и персонаж вместе, в хронологическом порядке, целиком. Для перевода поля ввода берутся сообщения в конце чата. Это справка для понимания сцены, а не текст для перевода. Ризонинг, системные сообщения и внешние блоки не отправляются. 0 — без истории. Больше сообщений — больше входных токенов; учитывайте лимит контекста модели.</p>
                         <label class="checkbox_label"><input id="lt_skip_native" data-setting="skipNative" type="checkbox"><span>Пропускать текст, уже написанный на нужном языке</span></label>
                         <p class="lt-hint">Определение по алфавиту: русский, корейский, японский, китайский и тайский. Языки на латинице автоматически не пропускаются.</p>
+                        <p class="lt-hint">Кэш сохраняет один перевод на каждый вариант сообщения, вместе с ручными правками. 🌏 переключает оригинал и перевод без запроса. Перезагрузка и переключение внешних блоков не удаляют кэш. Новый запрос: ⚖️ → «Перевести заново». После изменения исходного текста или пары языков старый перевод не используется повторно.</p>
+                        <button id="lt_clear_cache" type="button" class="menu_button">Очистить кэш этого чата</button>
                     </div>
                 </details>
             </div>
