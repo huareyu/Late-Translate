@@ -165,18 +165,27 @@ function chatContext(mesId, s) {
 
 function ownsDisplay(m) {
     const record = m?.extra?.[KEY];
-    return Boolean(record?.shown && m.extra.display_text === (record.renderedDisplay ?? record.display));
+    const displayed = m?.extra?.display_text;
+    return Boolean(record?.shown && (displayed === (record.renderedDisplay ?? record.display)
+        || (record.source === m.mes && typeof record.display === 'string' && record.display.length > 0
+            && typeof displayed === 'string' && extension_settings.ExtBlocks?.extblocks_is_enabled
+            && m.extra.extblocks && displayed.startsWith(record.display))));
 }
 
 /** ExtBlocks owns the suffix; only the story body belongs to the translator. */
 function externalSuffix(m) {
     if (!extension_settings.ExtBlocks?.extblocks_is_enabled || !m.extra?.extblocks) return '';
+    const record = m.extra[KEY];
+    const displayed = m.extra.display_text;
+    // The currently visible block/CYOA markup can be newer than its last snapshot.
+    if (typeof displayed === 'string') {
+        if (displayed.startsWith(m.mes)) return displayed.slice(m.mes.length);
+        if (record?.shown && record.source === m.mes && typeof record.display === 'string'
+            && record.display.length > 0 && displayed.startsWith(record.display)) return displayed.slice(record.display.length);
+    }
     const cached = externalDisplays.get(m);
     if (cached?.extblocks === m.extra.extblocks && cached.swipe === m.swipe_id) return cached.suffix;
-    const record = m.extra[KEY];
     if (record?.source === m.mes && record.extblocksSource === m.extra.extblocks) return record.blockSuffix || '';
-    const displayed = m.extra.display_text;
-    if (typeof displayed === 'string' && displayed.startsWith(m.mes)) return displayed.slice(m.mes.length);
     return '';
 }
 
@@ -187,9 +196,12 @@ function isBlocksDisplay(m) {
 
 export function composeExternalDisplay(m, suffix = '') {
     const record = m.extra?.[KEY];
-    const owns = ownsDisplay(m);
     externalDisplays.set(m, { suffix, extblocks: m.extra?.extblocks, swipe: m.swipe_id });
-    if (record?.shown && record.source === m.mes && owns) {
+    // display_text is a disposable projection shared with ExtBlocks. It may
+    // already be cleared/rebuilt by the time blocks are toggled. Recover from
+    // the saved body, but never revive a hidden or source-stale translation.
+    const newSwipeSlot = Array.isArray(m.swipes) && Number.isInteger(m.swipe_id) && m.swipe_id >= m.swipes.length;
+    if (!newSwipeSlot && record?.shown && record.source === m.mes && typeof record.display === 'string') {
         record.blockSuffix = suffix;
         record.extblocksSource = m.extra?.extblocks;
         record.renderedDisplay = record.display + suffix;
@@ -230,10 +242,10 @@ export async function prepareImages(mesId) {
     return true;
 }
 
-function hideDisplay(m) {
+function hideDisplay(m, { showOriginal = false } = {}) {
     const record = m.extra?.[KEY];
     if (!record) return false;
-    if (ownsDisplay(m)) {
+    if (showOriginal || ownsDisplay(m)) {
         const suffix = externalSuffix(m);
         if (suffix) m.extra.display_text = m.mes + suffix;
         else delete m.extra.display_text;
@@ -323,10 +335,16 @@ export async function translateOutgoing(mesId, { restart = false } = {}) {
 export async function toggleTranslation(mesId) {
     const m = chat[mesId];
     if (!m || m.is_system || !getSettings().enabled) return;
-    pending.get(m)?.controller.abort();
     const record = m.extra?.[KEY];
-    if (ownsDisplay(m)) {
-        hideDisplay(m);
+    const op = pending.get(m);
+    if (op) {
+        op.controller.abort(); pending.delete(m);
+        if (!record?.shown) { decorateMessages(); return; }
+    }
+    // This is an explicit request to view the original of our saved translation,
+    // not permission to translate/replace a supposedly foreign display again.
+    if (record?.shown) {
+        hideDisplay(m, { showOriginal: true });
         updateMessageBlock(mesId, m);
         await getContext().saveChat();
         decorateMessages();
@@ -728,12 +746,17 @@ export function bindEvents() {
         // New swipe slots still contain the previous body until generation starts.
         const generating = m.mes === '...' || (Array.isArray(m.swipes) && m.swipe_id >= m.swipes.length)
             || $(`#chat .mes[mesid="${id}"] .mes_text`).text() === '...';
-        if (!generating) {
+        if (generating) {
+            // A new slot inherits the previous extras until ST starts generation.
+            // Its old translation already lives in that previous swipe's storage.
+            hideDisplay(m);
+        } else {
             const record = m.extra?.[KEY];
             if (record && record.source !== m.mes) {
                 if (hideDisplay(m)) updateMessageBlock(id, m);
-            } else if (record?.shown && typeof record.display === 'string' && !ownsDisplay(m)
-                && (!m.extra.display_text || isBlocksDisplay(m))) {
+            } else if (record?.shown && typeof record.display === 'string'
+                && (ownsDisplay(m) || !m.extra.display_text || isBlocksDisplay(m))
+                && m.extra.display_text !== record.display + externalSuffix(m)) {
                 showDisplay(m, record.display, record.direction,
                     record.direction === 'outgoing' ? { inputOriginal: record.inputOriginal } : {});
                 updateMessageBlock(id, m);
@@ -814,6 +837,6 @@ jQuery(async () => {
             for (const [code, [label]] of Object.entries(LANGUAGES)) $(this).append($('<option>').val(code).text(label));
         });
         bindUI(); bindEvents(); registerCommands(); syncUI();
-        console.info('[Late-Translate] Loaded v1.4.1');
+        console.info('[Late-Translate] Loaded v1.4.3');
     } catch (error) { console.error('[Late-Translate] Initialization failed', error); reportError(error); }
 });
