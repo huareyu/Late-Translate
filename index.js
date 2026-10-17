@@ -553,11 +553,21 @@ export function decorateMessages() {
         const id = Number($message.attr('mesid'));
         const m = chat[id];
         const $buttons = $message.find('.extraMesButtons');
-        if (!getSettings().enabled || !m || m.is_system) { $buttons.find('.lt-message-button').remove(); return; }
+        if (!getSettings().enabled || !m || m.is_system) {
+            $buttons.find('.lt-message-button').remove();
+            $message.find('.lt-translation-status').remove();
+            return;
+        }
+        const busy = pending.has(m);
+        const label = busy ? 'Перевожу… Нажмите, чтобы отменить (Late-Translate)' : 'Оригинал / сохранённый перевод (Late-Translate)';
+        if (busy && !$message.find('.lt-translation-status').length) {
+            $message.find('.mes_text').before('<div class="lt-translation-status" role="status"><span class="lt-working-globe fa-solid fa-earth-asia" aria-hidden="true"></span><span>Перевожу…</span></div>');
+        } else if (!busy) $message.find('.lt-translation-status').remove();
         if (!$buttons.find('.lt-toggle').length) {
             $buttons.prepend('<div role="button" tabindex="0" class="mes_button lt-message-button lt-toggle fa-solid fa-earth-asia" title="Оригинал / сохранённый перевод (Late-Translate)"></div>');
         }
-        $buttons.find('.lt-toggle').toggleClass('lt-busy', pending.has(m))
+        $buttons.find('.lt-toggle').toggleClass('lt-busy', busy)
+            .attr('title', label).attr('aria-label', label).attr('aria-busy', String(busy))
             .toggleClass('lt-shown', ownsDisplay(m)).attr('aria-pressed', String(ownsDisplay(m)));
         if (ownsDisplay(m) && !$buttons.find('.lt-compare-button').length) {
             $buttons.prepend('<div role="button" tabindex="0" class="mes_button lt-message-button lt-compare-button fa-solid fa-scale-balanced" title="Сравнить и исправить перевод (Late-Translate)"></div>');
@@ -897,6 +907,6 @@ jQuery(async () => {
             for (const [code, [label]] of Object.entries(LANGUAGES)) $(this).append($('<option>').val(code).text(label));
         });
         bindUI(); bindEvents(); registerCommands(); chat.forEach(restoreDisplay); syncUI();
-        console.info('[Late-Translate] Loaded v1.5.0');
+        console.info('[Late-Translate] Loaded v1.5.1');
     } catch (error) { console.error('[Late-Translate] Initialization failed', error); reportError(error); }
 });

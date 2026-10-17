@@ -91,7 +91,25 @@
 #lt_settings .lt-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 14px; font-size: .7em; opacity: .5; padding: 13px 0 3px; }
 #lt_settings :focus-visible, .lt-message-button:focus-visible { outline: 2px solid var(--lt-accent, #94cabb); outline-offset: 3px; }
 .lt-message-button.lt-shown { color: var(--SmartThemeQuoteColor, #94cabb); }
-.lt-message-button.lt-busy { animation: lt-pulse 1s ease-in-out infinite; }
+#chat .lt-message-button.lt-busy, .lt-translation-status .lt-working-globe {
+    color: #89e4cf;
+    opacity: 1;
+    filter: none;
+    animation: lt-globe-glow 1.4s ease-in-out infinite;
+}
+#chat .lt-message-button.lt-busy::before, .lt-translation-status .lt-working-globe::before {
+    display: inline-block;
+    transform-origin: center;
+    animation: lt-globe-spin 2s linear infinite;
+}
+.lt-translation-status {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    margin: .3em 0;
+    color: var(--SmartThemeBodyColor, inherit);
+    font-size: .85em;
+}
 .lt-compare { text-align: left; }
 .lt-compare label { display: block; margin: 14px 0 7px; }
 .lt-compare textarea { width: 100%; resize: vertical; line-height: 1.5; }
@@ -121,9 +139,17 @@
 #rightSendForm > #lt_translate_input:disabled { cursor: wait; opacity: .4; }
 #lt_translate_input_wand[aria-disabled="true"] { cursor: wait; opacity: .5; }
 #lt_translate_input_wand:focus-visible { outline: 2px solid var(--SmartThemeQuoteColor, #94cabb); outline-offset: -2px; }
-@keyframes lt-pulse { 50% { opacity: .3; } }
+@keyframes lt-globe-spin { to { transform: rotate(360deg); } }
+@keyframes lt-globe-glow {
+    0%, 100% { text-shadow: 0 0 3px #89e4cf66; }
+    50% { text-shadow: 0 0 9px #89e4cf, 0 0 14px #89e4cf88; }
+}
 @media (prefers-reduced-motion: reduce) {
-    .lt-message-button.lt-busy { animation: none; opacity: .45; }
+    #chat .lt-message-button.lt-busy, .lt-translation-status .lt-working-globe,
+    #chat .lt-message-button.lt-busy::before, .lt-translation-status .lt-working-globe::before {
+        animation: none;
+        text-shadow: 0 0 5px #89e4cf;
+    }
     #lt_settings .lt-switch-track, #lt_settings .lt-switch-track::after { transition: none; }
 }
 @container (max-width: 440px) {
